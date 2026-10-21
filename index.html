@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="color-scheme" content="dark light">
+  <title>抢票日历 · 哪天几点开售</title>
+  <meta name="description" content="按出行日倒推 12306 开售日期和各站起售时间，节假日、春运抢票日历，一键加入手机日历提醒">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🚄</text></svg>">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #080a0e; --panel: #12151b; --panel-2: #191d25; --hover: rgba(255,255,255,0.035);
+      --line: rgba(255,255,255,0.07); --line-2: rgba(255,255,255,0.14);
+      --text-1: #eef1f6; --text-2: #a0a7b4; --text-3: #656c79;
+      --accent: #4f8bff; --grad: linear-gradient(120deg, #60a5fa 0%, #4f8bff 50%, #22d3ee 100%);
+      --now: #f97316; --soon: #facc15; --done: #656c79; --ok: #4ade80; --bad: #f87171;
+      --shadow: 0 0 0 1px var(--line), 0 12px 32px rgba(0,0,0,0.35);
+    }
+    :root[data-theme="light"] {
+      --bg: #f6f8fb; --panel: #ffffff; --panel-2: #f0f3f8; --hover: rgba(10,30,70,0.035);
+      --line: rgba(10,30,70,0.08); --line-2: rgba(10,30,70,0.16);
+      --text-1: #121722; --text-2: #4f5767; --text-3: #8f97a5;
+      --accent: #1d5fe0; --now: #ea580c; --soon: #ca8a04; --done: #8f97a5; --ok: #16a34a; --bad: #dc2626;
+      --shadow: 0 0 0 1px var(--line), 0 10px 28px rgba(10,30,70,0.06);
+    }
+    body { background: var(--bg); color: var(--text-1); font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+      font-size: 14px; line-height: 1.55; -webkit-font-smoothing: antialiased; font-feature-settings: 'tnum' 1; min-height: 100vh; }
+    body::before { content: ""; position: fixed; inset: 0; z-index: -1; pointer-events: none; background: radial-gradient(900px 420px at 15% -10%, rgba(79,139,255,0.11), transparent 70%); }
+    a { color: inherit; text-decoration: none; }
+    button { font: inherit; color: inherit; background: none; border: 0; cursor: pointer; }
+    input { font: inherit; color: var(--text-1); }
+
+    .topbar { position: sticky; top: 0; z-index: 20; backdrop-filter: blur(16px) saturate(1.4); -webkit-backdrop-filter: blur(16px) saturate(1.4);
+      background: color-mix(in srgb, var(--bg) 75%, transparent); border-bottom: 1px solid var(--line); }
+    .topbar-inner { max-width: 1200px; margin: 0 auto; padding: 12px 20px; display: flex; align-items: center; gap: 14px; }
+    .logo { display: flex; align-items: center; gap: 10px; font-weight: 800; font-size: 17px; letter-spacing: -0.02em; white-space: nowrap; }
+    .logo-mark { width: 30px; height: 30px; border-radius: 9px; background: var(--grad); display: grid; place-items: center; font-size: 16px; }
+    .logo small { font-weight: 500; color: var(--text-3); font-size: 12px; margin-left: 2px; }
+    .nav { display: flex; gap: 4px; margin-left: 10px; }
+    .nav a { padding: 6px 12px; border-radius: 8px; color: var(--text-2); font-size: 13px; font-weight: 500; white-space: nowrap; }
+    .nav a:hover { color: var(--text-1); background: var(--hover); }
+    .spacer { flex: 1; }
+    .updated { font-size: 12px; color: var(--text-3); white-space: nowrap; }
+    .icon-btn { width: 34px; height: 34px; border-radius: 10px; border: 1px solid var(--line); display: grid; place-items: center; color: var(--text-2); flex-shrink: 0; }
+    .icon-btn:hover { color: var(--text-1); border-color: var(--line-2); }
+
+    .layout { max-width: 1200px; margin: 0 auto; padding: 24px 20px 64px; display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 22px; }
+    .aside { position: sticky; top: 76px; align-self: start; display: flex; flex-direction: column; gap: 14px; }
+    .panel { background: var(--panel); border-radius: 16px; box-shadow: var(--shadow); }
+    .pad { padding: 18px 20px; }
+    h2.sec { font-size: 17px; font-weight: 700; margin: 34px 0 12px; display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; scroll-margin-top: 80px; }
+    h2.sec small { color: var(--text-3); font-weight: 500; font-size: 12.5px; }
+
+    .hero { padding: 22px 24px; display: flex; justify-content: space-between; gap: 20px; align-items: center; flex-wrap: wrap; }
+    .hero .k { font-size: 13px; color: var(--text-2); }
+    .hero .v { font-size: 34px; font-weight: 800; letter-spacing: -0.03em; }
+    .hero .v em { font-style: normal; background: var(--grad); -webkit-background-clip: text; background-clip: text; color: transparent; }
+    .hero .s { font-size: 13px; color: var(--text-3); }
+    .rush { text-align: right; }
+    .rush .v { font-size: 26px; }
+
+    /* 计算器 */
+    .calc { padding: 20px; display: grid; gap: 18px; }
+    .calc-in { display: flex; gap: 12px; flex-wrap: wrap; align-items: flex-end; }
+    .field { display: flex; flex-direction: column; gap: 6px; position: relative; }
+    .field label { font-size: 12px; color: var(--text-3); font-weight: 500; }
+    .input { display: flex; align-items: center; background: var(--panel-2); border: 1px solid var(--line); border-radius: 10px; min-height: 46px; }
+    .input:focus-within { border-color: var(--accent); }
+    .input input { background: none; border: 0; outline: 0; padding: 10px 12px; font-size: 16px; font-weight: 600; width: 190px; color-scheme: dark light; }
+    .quick { display: flex; gap: 6px; flex-wrap: wrap; }
+    .quick button { font-size: 12px; padding: 5px 10px; border-radius: 999px; border: 1px solid var(--line); color: var(--text-2); }
+    .quick button:hover, .quick button.on { color: var(--text-1); border-color: var(--line-2); }
+    .drop { position: absolute; top: 100%; left: 0; width: 280px; margin-top: 4px; background: var(--panel); box-shadow: var(--shadow); border-radius: 12px; z-index: 30; max-height: 300px; overflow: auto; display: none; }
+    .drop.show { display: block; }
+    .drop button { display: flex; justify-content: space-between; width: 100%; padding: 9px 14px; font-size: 13.5px; text-align: left; gap: 10px; }
+    .drop button:hover, .drop button.hl { background: var(--hover); }
+    .drop button span { color: var(--text-3); font-size: 12px; }
+    .result { display: grid; grid-template-columns: 1fr auto; gap: 10px 20px; align-items: center; padding: 18px 20px; border-radius: 14px; background: var(--panel-2); }
+    .result .big { font-size: 30px; font-weight: 800; letter-spacing: -0.03em; }
+    .result .big small { font-size: 16px; color: var(--text-2); font-weight: 600; margin-left: 6px; }
+    .result .cd { font-size: 14px; color: var(--text-2); }
+    .result .cd b { color: var(--now); }
+    .btn { display: inline-flex; align-items: center; gap: 6px; padding: 10px 16px; border-radius: 10px; background: var(--accent); color: #fff; font-weight: 600; font-size: 14px; white-space: nowrap; }
+    .btn:hover { filter: brightness(1.1); }
+    .btn.ghost { background: none; color: var(--text-2); border: 1px solid var(--line-2); }
+    .hint { font-size: 12.5px; color: var(--text-3); }
+
+    table { width: 100%; border-collapse: collapse; }
+    th, td { padding: 11px 14px; border-bottom: 1px solid var(--line); text-align: left; white-space: nowrap; }
+    th { font-size: 12px; color: var(--text-3); font-weight: 600; }
+    tr:last-child td { border-bottom: 0; }
+    .table-wrap { overflow-x: auto; }
+    .sale { display: inline-flex; flex-direction: column; line-height: 1.3; }
+    .sale b { font-weight: 600; }
+    .sale small { font-size: 11.5px; color: var(--text-3); }
+    .st { font-size: 11.5px; font-weight: 600; padding: 2px 8px; border-radius: 999px; }
+    .st.now { color: var(--now); background: color-mix(in srgb, var(--now) 15%, transparent); }
+    .st.soon { color: var(--soon); background: color-mix(in srgb, var(--soon) 15%, transparent); }
+    .st.later { color: var(--accent); background: color-mix(in srgb, var(--accent) 14%, transparent); }
+    .st.done { color: var(--done); background: var(--hover); }
+    .est { font-size: 11px; color: var(--soon); margin-left: 6px; }
+    .bell { font-size: 12.5px; color: var(--accent); }
+    .bell:hover { text-decoration: underline; }
+    .muted { color: var(--text-3); }
+
+    .stations { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; padding: 16px; }
+    .stn { padding: 10px 12px; border-radius: 10px; background: var(--panel-2); display: flex; justify-content: space-between; gap: 8px; font-size: 13.5px; }
+    .stn b { font-weight: 600; }
+    .stn span { color: var(--text-2); }
+    .tips { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .tip { padding: 14px 16px; }
+    .tip b { display: block; margin-bottom: 4px; }
+    .tip p { font-size: 13px; color: var(--text-2); }
+
+    .news-item { display: flex; gap: 10px; padding: 11px 16px; border-bottom: 1px solid var(--line); align-items: baseline; }
+    .news-item:last-child { border-bottom: 0; }
+    .news-item:hover { background: var(--hover); }
+    .news-item .t { flex: 1; min-width: 0; font-size: 14px; }
+    .news-item:hover .t { color: var(--accent); }
+    .news-item .m { font-size: 12px; color: var(--text-3); white-space: nowrap; }
+
+    .widget { padding: 16px; }
+    .widget h3 { font-size: 13px; font-weight: 700; color: var(--text-2); margin-bottom: 10px; }
+    .mini-row { display: flex; justify-content: space-between; font-size: 13px; padding: 4px 0; gap: 8px; }
+    .mini-row span:first-child { color: var(--text-2); }
+    .note { font-size: 12px; color: var(--text-3); line-height: 1.7; }
+    .ok { color: var(--ok); } .bad { color: var(--bad); }
+
+    @media (max-width: 980px) { .layout { grid-template-columns: minmax(0, 1fr); } .aside { position: static; } .nav { display: none; } }
+    @media (max-width: 760px) {
+      .topbar-inner { padding: 10px 16px; } .logo small, .updated { display: none; }
+      .layout { padding: 16px 16px 50px; } .hero .v { font-size: 26px; } .rush { text-align: left; }
+      .input input { width: 150px; } .result { grid-template-columns: minmax(0, 1fr); } .result .big { font-size: 24px; }
+      .stations { grid-template-columns: repeat(2, minmax(0, 1fr)); } .tips { grid-template-columns: minmax(0, 1fr); }
+      th, td { padding: 9px 10px; }
+    }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <div class="topbar-inner">
+      <div class="logo"><div class="logo-mark">🚄</div>抢票日历<small>哪天几点开售</small></div>
+      <nav class="nav"><a href="#calc">倒推计算</a><a href="#holidays">节假日</a><a href="#stations">起售时间</a><a href="#tips">候补技巧</a><a href="#news">动态</a></nav>
+      <div class="spacer"></div>
+      <span class="updated" id="updated"></span>
+      <a class="icon-btn" href="https://github.com/climb0516/ticket-calendar/actions/workflows/scrape.yml" target="_blank" rel="noopener" title="立即抓取（在 GitHub Actions 点 Run workflow）">⚡</a>
+      <button class="icon-btn" id="theme" title="切换主题"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg></button>
+    </div>
+  </header>
+
+  <div class="layout">
+    <main id="main"><div class="panel pad muted">加载中…</div></main>
+    <aside class="aside" id="aside"></aside>
+  </div>
+
+<script>
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const store = {
+  get(k, d) { try { const v = localStorage.getItem('tk:' + k); return v === null ? d : JSON.parse(v); } catch { return d; } },
+  set(k, v) { try { localStorage.setItem('tk:' + k, JSON.stringify(v)); } catch {} },
+};
+const PRESALE = 15;                      // 预售期 15 天（含当天）
+const OFFSET = PRESALE - 1;              // 出发日 − 14 天开售
+// 春运按「正月初一前 15 天到后 24 天」共 40 天推算（正式日程以国家发改委 / 国铁集团公布为准）
+const LUNAR_NY = { 2027: '2027-02-06', 2028: '2028-01-26', 2029: '2029-02-13' };
+const HOT = ['北京南', '北京西', '上海虹桥', '广州南', '深圳北', '杭州东', '南京南', '武汉', '成都东', '重庆北', '西安北', '郑州东', '长沙南', '合肥南', '济南西', '天津西'];
+let D = null, ST = {};
+const state = { station: store.get('station', '杭州东'), date: null };
+
+// ── 日期工具（全部按北京时间）──
+const todayISO = () => new Date(Date.now() + 8 * 3600000).toISOString().slice(0, 10);
+const addDays = (iso, n) => { const d = new Date(iso + 'T00:00:00Z'); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
+const diffDays = (a, b) => Math.round((new Date(b + 'T00:00:00Z') - new Date(a + 'T00:00:00Z')) / 86400000);
+const WD = '日一二三四五六';
+const md = iso => `${+iso.slice(5, 7)}月${+iso.slice(8, 10)}日`;
+const mdw = iso => `${md(iso)} 周${WD[new Date(iso + 'T00:00:00Z').getUTCDay()]}`;
+const saleOf = travel => addDays(travel, -OFFSET);
+const stationTime = () => ST[state.station]?.[1] || null;
+function ago(iso) {
+  const s = (Date.now() - new Date(iso)) / 1000;
+  if (s < 3600) return Math.max(1, Math.round(s / 60)) + ' 分钟前';
+  if (s < 86400) return Math.round(s / 3600) + ' 小时前';
+  return Math.round(s / 86400) + ' 天前';
+}
+// 开售状态：已开售 / 今天 / 明天 / N 天后
+function status(sale, time) {
+  const today = todayISO(), d = diffDays(today, sale);
+  if (d < 0) return { cls: 'done', text: '已开售' };
+  if (d === 0) {
+    const nowHM = new Date(Date.now() + 8 * 3600000).toISOString().slice(11, 16);
+    return time && nowHM >= time ? { cls: 'done', text: '今天已开售' } : { cls: 'now', text: `今天${time ? ' ' + time : ''}开售` };
+  }
+  if (d === 1) return { cls: 'now', text: `明天${time ? ' ' + time : ''}` };
+  if (d <= 7) return { cls: 'soon', text: `${d} 天后` };
+  return { cls: 'later', text: `${d} 天后` };
+}
+
+// ── 日历提醒（.ics）：开售前 10 分钟提醒 ──
+function ics(title, sale, time, desc) {
+  const t = time || '08:00';
+  const start = new Date(`${sale}T${t}:00+08:00`);
+  const z = d => d.toISOString().replace(/[-:]/g, '').slice(0, 15) + 'Z';
+  const body = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//ticket-calendar//CN', 'CALSCALE:GREGORIAN', 'BEGIN:VEVENT',
+    `UID:${sale}-${t}-${Math.random().toString(36).slice(2)}@ticket-calendar`, `DTSTAMP:${z(new Date())}`, `DTSTART:${z(start)}`, 'DURATION:PT30M',
+    `SUMMARY:${title}`, `DESCRIPTION:${desc.replace(/\n/g, '\\n')}`, 'URL:https://climb0516.github.io/ticket-calendar/',
+    'BEGIN:VALARM', 'TRIGGER:-PT10M', 'ACTION:DISPLAY', `DESCRIPTION:${title}`, 'END:VALARM', 'END:VEVENT', 'END:VCALENDAR'].join('\r\n');
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([body], { type: 'text/calendar;charset=utf-8' }));
+  a.download = `抢票提醒-${sale}.ics`;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+}
+
+// ── 视图 ──
+function springRush() {
+  const today = todayISO();
+  for (const y of Object.keys(LUNAR_NY).sort()) {
+    const ny = LUNAR_NY[y], start = addDays(ny, -15), end = addDays(ny, 24);
+    if (end >= today) return { year: +y, ny, start, end, firstSale: saleOf(start) };
+  }
+  return null;
+}
+function render() {
+  const today = todayISO(), sell = addDays(today, OFFSET), rush = springRush();
+  $('#main').innerHTML = `
+    <section class="panel hero">
+      <div><div class="k">今天（${mdw(today)}）开售的是</div><div class="v"><em>${mdw(sell)}</em> 的车票</div>
+        <div class="s">12306 预售期 ${PRESALE} 天（含当天）· 起售时间以出发站为准，${esc(state.station)} ${stationTime() || '—'} 开售</div></div>
+      ${rush ? `<div class="rush"><div class="k">${rush.year} 年春运（预计）</div><div class="v">${md(rush.start)}–${md(rush.end)}</div>
+        <div class="s">首日车票 ${md(rush.firstSale)} 开售 · ${diffDays(today, rush.firstSale) > 0 ? `还有 ${diffDays(today, rush.firstSale)} 天` : '已开售'}</div></div>` : ''}
+    </section>
+
+    <h2 class="sec" id="calc">倒推计算<small>选出发日期和出发站，算出哪天几点开售</small></h2>
+    <div class="panel calc">
+      <div class="calc-in">
+        <div class="field"><label>出发日期</label><div class="input"><input id="date" type="date" value="${state.date}" min="${today}"></div></div>
+        <div class="field"><label>出发站（支持拼音 / 首字母）</label><div class="input"><input id="stn" type="text" value="${esc(state.station)}" autocomplete="off" placeholder="如 杭州东 / hzd"></div><div class="drop" id="drop"></div></div>
+        <div class="field"><label>常用</label><div class="quick">${[...new Set([state.station, ...store.get('recent', []), '北京南', '上海虹桥'])].slice(0, 5).map(n => `<button data-stn="${esc(n)}" class="${n === state.station ? 'on' : ''}">${esc(n)}</button>`).join('')}</div></div>
+      </div>
+      <div class="result" id="result"></div>
+      <div class="hint">提示：同一车次各站起售时间不同，以<b>你上车的车站</b>为准；中转、联程票按第一程出发站计算。候补购票在开售后即可提交。</div>
+    </div>
+
+    <h2 class="sec" id="holidays">节假日抢票日历<small>和拼假攻略联动 · 按 ${esc(state.station)} ${stationTime() || ''} 起售计算</small></h2>
+    <div class="panel"><div class="table-wrap">${holidayTable()}</div></div>
+
+    <h2 class="sec" id="stations">各站起售时间<small>共 ${D.stations.length} 个车站 · 来自 12306 官方起售时间表 · 点击设为出发站</small></h2>
+    <div class="panel">
+      <div style="padding:16px 16px 0"><div class="input" style="max-width:320px"><input id="stnSearch" type="text" placeholder="搜索车站 / 城市 / 拼音" autocomplete="off" style="width:100%"></div></div>
+      <div class="stations" id="stnGrid">${stationGrid(HOT.filter(n => ST[n]).map(n => ST[n]))}</div>
+    </div>
+
+    <h2 class="sec" id="tips">候补购票与抢票技巧<small>官方规则</small></h2>
+    <div class="tips">
+      <div class="panel tip"><b>⏰ 提前 10 分钟准备</b><p>登录 12306、添加乘车人、核验身份证件；起售时间一到立刻提交，热门车次几秒到几分钟售罄。</p></div>
+      <div class="panel tip"><b>📝 候补购票</b><p>没抢到就提交候补：每人最多 6 个候补订单，每单可选预售期内 3 个乘车日期、最多 60 个车次；有退票时自动兑现，未兑现全额退款。</p></div>
+      <div class="panel tip"><b>🔁 买长坐短 / 中转</b><p>直达票紧张时，可以买覆盖你行程的更长区间，或用 12306 的中转换乘方案；按第一程出发站的起售时间抢。</p></div>
+      <div class="panel tip"><b>📅 节假日返程</b><p>返程票同样是出发日前 14 天开售，返程高峰（假期最后一天）往往比去程更难抢，别忘了一起定提醒。</p></div>
+    </div>
+
+    <h2 class="sec" id="news">相关动态<small>预售期调整、春运购票、春运机票</small></h2>
+    <div class="panel">${D.news.slice(0, 12).map(n => `<a class="news-item" href="${esc(n.url)}" target="_blank" rel="noopener">
+      <span class="t">${esc(n.title)}</span><span class="m">${esc(n.topic)} · ${esc(n.source)} · ${ago(n.time)}</span></a>`).join('') || '<div class="pad muted">暂无</div>'}</div>
+    <p class="note" style="margin-top:14px">开售日期按 12306 现行规则推算，节假日、春运期间如有调整以 12306 官方公告为准。机票没有统一的开售规则，以各航司公告为准。</p>`;
+  renderResult();
+  bindStation();
+  renderAside();
+}
+
+function renderResult() {
+  const sale = saleOf(state.date), time = stationTime(), st = status(sale, time);
+  const tooFar = diffDays(todayISO(), sale) < 0;
+  $('#result').innerHTML = `<div>
+      <div class="hint">${mdw(state.date)} 从 ${esc(state.station)} 出发的车票</div>
+      <div class="big">${mdw(sale)}<small>${time || '—'} 开售</small></div>
+      <div class="cd">${tooFar ? '已开售，可以直接买或提交候补' : `<span class="st ${st.cls}">${st.text}</span>`}</div>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">${tooFar ? '' : `<button class="btn" id="addCal">📅 加入日历提醒</button>`}
+      <a class="btn ghost" href="https://www.12306.cn/" target="_blank" rel="noopener">打开 12306</a></div>`;
+  $('#addCal')?.addEventListener('click', () => ics(`🚄 ${md(state.date)} 车票开售（${state.station} ${time || ''}）`, sale, time,
+    `${mdw(state.date)} 从 ${state.station} 出发的车票，${mdw(sale)} ${time || ''} 开售。\n提前登录 12306，没抢到记得提交候补。`));
+}
+
+function holidayTable() {
+  const today = todayISO(), time = stationTime();
+  const rows = D.holidays.filter(h => h.end >= today).slice(0, 8);
+  const rush = springRush();
+  const cell = (label, travel) => { const s = saleOf(travel), st = status(s, time);
+    return `<td><span class="sale"><b>${md(s)} ${time || ''}</b><small>${label} ${md(travel)} 的票</small></span> <span class="st ${st.cls}">${st.text}</span>
+      ${st.cls !== 'done' ? ` <button class="bell" data-ics="${travel}" data-name="${esc(label)}">提醒</button>` : ''}</td>`; };
+  const extra = rush ? `<tr><td><b>${rush.year} 春运</b><span class="est">预计</span><div class="muted" style="font-size:12px">${md(rush.start)}–${md(rush.end)}</div></td>
+    ${cell('春运首日', rush.start)}${cell('除夕前', addDays(rush.ny, -2))}${cell('节后', addDays(rush.ny, 6))}</tr>` : '';
+  return `<table><tr><th>假期</th><th>去程高峰（前一天）</th><th>去程高峰（第一天）</th><th>返程高峰（最后一天）</th></tr>
+    ${rows.map(h => `<tr><td><b>${esc(h.name)}</b>${h.est ? '<span class="est">预计</span>' : ''}<div class="muted" style="font-size:12px">${md(h.start)}–${md(h.end)} · ${diffDays(h.start, h.end) + 1} 天</div></td>
+      ${cell('出发', addDays(h.start, -1))}${cell('出发', h.start)}${cell('返程', h.end)}</tr>`).join('')}${extra}</table>`;
+}
+
+function stationGrid(list) {
+  return list.map(s => `<button class="stn" data-stn="${esc(s[0])}"><b>${esc(s[0])}</b><span>${s[1]}</span></button>`).join('') || '<div class="muted">没有匹配的车站</div>';
+}
+function searchStations(q) {
+  q = q.trim().toLowerCase();
+  if (!q) return [];
+  const score = s => s[0] === q ? 0 : s[0].startsWith(q) ? 1 : s[3].startsWith(q) ? 2 : s[2].startsWith(q) ? 3 : s[4].startsWith(q) ? 4 : s[0].includes(q) ? 5 : 9;
+  return D.stations.map(s => [score(s), s]).filter(x => x[0] < 9).sort((a, b) => a[0] - b[0] || a[1][0].length - b[1][0].length).map(x => x[1]).slice(0, 40);
+}
+function setStation(name) {
+  if (!ST[name]) return;
+  state.station = name; store.set('station', name);
+  const recent = [name, ...store.get('recent', []).filter(n => n !== name)].slice(0, 4);
+  store.set('recent', recent);
+  render();
+}
+function bindStation() {
+  const inp = $('#stn'), drop = $('#drop');
+  inp.addEventListener('input', () => {
+    const list = searchStations(inp.value).slice(0, 8);
+    drop.innerHTML = list.map((s, i) => `<button data-stn="${esc(s[0])}" class="${i ? '' : 'hl'}">${esc(s[0])}<span>${esc(s[4])} · ${s[1]}</span></button>`).join('');
+    drop.classList.toggle('show', list.length > 0);
+  });
+  inp.addEventListener('keydown', e => { if (e.key === 'Enter') { const f = drop.querySelector('button'); if (f) setStation(f.dataset.stn); } });
+  inp.addEventListener('focus', () => inp.select());
+  $('#date').addEventListener('change', e => { if (e.target.value) { state.date = e.target.value; renderResult(); } });
+  $('#stnSearch').addEventListener('input', e => {
+    const q = e.target.value;
+    $('#stnGrid').innerHTML = stationGrid(q.trim() ? searchStations(q) : HOT.filter(n => ST[n]).map(n => ST[n]));
+  });
+}
+function renderAside() {
+  const counts = {};
+  D.stations.forEach(s => counts[s[1]] = (counts[s[1]] || 0) + 1);
+  const top = Object.entries(counts).sort((a, b) => a[0].localeCompare(b[0]));
+  $('#aside').innerHTML = `
+    <div class="panel widget"><h3>📏 现行规则</h3>
+      <div class="mini-row"><span>预售期</span><b>${PRESALE} 天（含当天）</b></div>
+      <div class="mini-row"><span>开售日</span><b>出发日 − ${OFFSET} 天</b></div>
+      <div class="mini-row"><span>起售时间</span><b>08:00–18:00 按站</b></div>
+      <div class="note" style="margin-top:6px">来源：12306 官方说明。调整预售期时铁路部门会提前公告。</div></div>
+    <div class="panel widget"><h3>🕗 起售时间分布</h3>
+      ${top.map(([t, n]) => `<div class="mini-row"><span>${t}</span><span>${n} 个站</span></div>`).join('')}</div>
+    <div class="panel widget"><h3>📡 数据来源 · ${D.sources.filter(s => s.ok).length}/${D.sources.length} 正常</h3>
+      ${D.sources.map(s => `<div class="mini-row"><span>${esc(s.name)}</span><span class="${s.ok ? 'ok' : 'bad'}">${s.ok ? '正常' : '失败 · 沿用旧数据'}</span></div>`).join('')}
+      <div class="note" style="margin-top:6px">每天自动更新 · 最近 ${new Date(D.updated).toLocaleString('zh-CN', { hour12: false })}</div></div>`;
+  $('#updated').textContent = '更新于 ' + ago(D.updated);
+}
+
+document.addEventListener('click', e => {
+  const s = e.target.closest('[data-stn]');
+  if (s) { setStation(s.dataset.stn); return; }
+  const b = e.target.closest('[data-ics]');
+  if (b) { const travel = b.dataset.ics, sale = saleOf(travel), time = stationTime();
+    ics(`🚄 ${md(travel)} ${b.dataset.name}车票开售（${state.station} ${time || ''}）`, sale, time, `${mdw(travel)} 的车票，${mdw(sale)} ${time || ''} 在 ${state.station} 开售。`); }
+  if (!e.target.closest('.field')) $('#drop')?.classList.remove('show');
+});
+function applyTheme(t) { document.documentElement.dataset.theme = t; }
+applyTheme(store.get('theme', 'dark'));
+$('#theme').addEventListener('click', () => { const t = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark'; applyTheme(t); store.set('theme', t); });
+
+(async () => {
+  try {
+    D = await fetch('data.json', { cache: 'no-cache' }).then(r => r.json());   // no-cache：更新后刷新即可见
+    ST = Object.fromEntries(D.stations.map(s => [s[0], s]));
+    if (!ST[state.station]) state.station = '杭州东';
+    state.date = addDays(todayISO(), OFFSET);       // 默认：今天开售的那一天
+    render();
+  } catch (e) {
+    $('#main').innerHTML = '<div class="panel pad">数据加载失败，请稍后刷新</div>';
+  }
+})();
+</script>
+</body>
+</html>
